@@ -6,6 +6,7 @@ export enum VolumeRenderingModes {
   ON = 1,
   MAX = 2,
   MIN = 3,
+  EMISSION_ABSORPTION = 4,
 }
 
 export type TrackableVolumeRenderingModeValue =
@@ -23,4 +24,8 @@ export function isProjectionMode(mode: VolumeRenderingModes): boolean {
 
 export function isProjectionLayer(layer: VolumeRenderingRenderLayer): boolean {
   return isProjectionMode(layer.mode.value);
+}
+
+export function isEmissionAbsorptionMode(mode: VolumeRenderingModes): boolean {
+  return mode === VolumeRenderingModes.EMISSION_ABSORPTION;
 }

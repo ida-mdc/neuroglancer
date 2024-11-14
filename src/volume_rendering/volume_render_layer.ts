@@ -68,6 +68,7 @@ import type { TrackableVolumeRenderingModeValue } from "#src/volume_rendering/tr
 import {
   VolumeRenderingModes,
   isProjectionMode,
+  isEmissionAbsorptionMode,
   trackableShaderModeValue,
 } from "#src/volume_rendering/trackable_volume_rendering_mode.js";
 import {
@@ -124,6 +125,14 @@ void emitRGBA(vec4 rgba) {
   float weightedAlpha = correctedAlpha * computeOITWeight(correctedAlpha, depthAtRayPosition);
   outputColor += vec4(rgba.rgb * weightedAlpha, weightedAlpha);
   revealage *= 1.0 - correctedAlpha;
+}
+`;
+
+export const glsl_emitRGBAEmissionAbsorption = `
+void emitRGBA(vec4 val_color) {
+    float oneMinusAlpha = 1.0 - outputColor.a;
+    outputColor.rgb += oneMinusAlpha * val_color.a * val_color.rgb;
+    outputColor.a += oneMinusAlpha * val_color.a;
 }
 `;
 
@@ -374,6 +383,20 @@ void emitRGBA(vec4 rgba) {
   userEmittedIntensity = -100.0;
 `;
           }
+
+          let glsl_handleEmissionAbsorptionUpdate = ``;
+          if (isEmissionAbsorptionMode(shaderParametersState.mode)) {
+            glsl_handleEmissionAbsorptionUpdate = `
+  if (outputColor.a >= 0.98) {
+    break;
+  }
+`;
+            glsl_finalEmit = `
+  emit(outputColor, 0u);
+`;
+            glsl_rgbaEmit = glsl_emitRGBAEmissionAbsorption;
+          }
+
           emitter(builder);
           // Near limit in [0, 1] as fraction of full limit.
           builder.addUniform("highp float", "uNearLimitFraction");
@@ -467,6 +490,7 @@ void main() {
 `);
           } else {
             builder.setFragmentMainFunction(`
+
 void main() {
   vec2 normalizedPosition = vNormalizedPosition.xy / vNormalizedPosition.w;
   vec4 nearPointH = uInvModelViewProjectionMatrix * vec4(normalizedPosition, -1.0, 1.0);
@@ -514,9 +538,13 @@ void main() {
     if (rayPositionBehindOpaqueObject) {
       break;
     }
+
     curChunkPosition = position - uTranslation;
+
     userMain();
+
     ${glsl_handleMaxProjectionUpdate}
+    ${glsl_handleEmissionAbsorptionUpdate}
   }
   ${glsl_finalEmit}
 }
